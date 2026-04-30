@@ -90,23 +90,14 @@
     button:active { transform: scale(0.96); }
     button:disabled { opacity: 0.4; cursor: default; }
 
-    #btn-higher {
-      background: #e94560;
-      color: #fff;
-    }
-
-    #btn-lower {
-      background: #0f3460;
-      color: #fff;
-      border: 2px solid #e94560;
-    }
+    #btn-higher { background: #e94560; color: #fff; }
+    #btn-lower  { background: #0f3460; color: #fff; border: 2px solid #e94560; }
 
     .result-msg {
       font-size: 1.2rem;
       font-weight: 600;
       min-height: 1.6em;
       text-align: center;
-      transition: opacity 0.2s;
     }
 
     .result-msg.correct { color: #4ade80; }
@@ -135,6 +126,97 @@
     .history-item.correct { background: #166534; color: #4ade80; }
     .history-item.wrong   { background: #7f1d1d; color: #f87171; }
     .history-item.tie     { background: #713f12; color: #facc15; }
+
+    /* Name entry form */
+    #name-form {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      background: #16213e;
+      border-radius: 16px;
+      padding: 24px 32px;
+      min-width: 280px;
+    }
+
+    #name-form.visible { display: flex; }
+
+    #name-form p {
+      font-size: 0.95rem;
+      color: #aaa;
+    }
+
+    #name-form strong { color: #fff; }
+
+    #player-name {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 2px solid #0f3460;
+      background: #0f1b35;
+      color: #fff;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    #player-name:focus { border-color: #e94560; }
+
+    .form-buttons {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    #btn-submit-score {
+      background: #e94560;
+      color: #fff;
+      flex: 2;
+      padding: 12px;
+      font-size: 0.95rem;
+    }
+
+    #btn-skip {
+      background: transparent;
+      color: #aaa;
+      border: 2px solid #333;
+      flex: 1;
+      padding: 12px;
+      font-size: 0.95rem;
+    }
+
+    /* Leaderboard */
+    #leaderboard {
+      background: #16213e;
+      border-radius: 16px;
+      padding: 20px 32px;
+      min-width: 280px;
+      text-align: center;
+    }
+
+    #leaderboard h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #888;
+      margin-bottom: 14px;
+    }
+
+    .lb-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #1a2a4a;
+      font-size: 0.95rem;
+    }
+
+    .lb-row:last-child { border-bottom: none; }
+
+    .lb-rank { color: #e94560; font-weight: 800; width: 24px; text-align: left; }
+    .lb-name { flex: 1; text-align: left; padding: 0 10px; color: #eee; }
+    .lb-score { font-weight: 700; color: #fff; }
+
+    .lb-empty { color: #555; font-size: 0.9rem; padding: 8px 0; }
 
     #btn-restart {
       background: transparent;
@@ -173,11 +255,30 @@
 
   <div class="history" id="history"></div>
 
+  <!-- Shown on game over if SCRIPT_URL is set -->
+  <div id="name-form">
+    <p>Game over! Score: <strong id="final-score">0</strong></p>
+    <p style="font-size:0.85rem;color:#666;">Enter your name to save to the leaderboard</p>
+    <input id="player-name" type="text" maxlength="20" placeholder="Your name" autocomplete="off" />
+    <div class="form-buttons">
+      <button id="btn-submit-score">Save score</button>
+      <button id="btn-skip">Skip</button>
+    </div>
+  </div>
+
   <button id="btn-restart">Play Again</button>
 
-  <script>
-    const MIN = 1, MAX = 100;
+  <!-- Top 3 leaderboard -->
+  <div id="leaderboard">
+    <h2>Top 3</h2>
+    <div id="lb-rows"><div class="lb-empty">No scores yet</div></div>
+  </div>
 
+  <script>
+    // Paste your Google Apps Script web app URL here after deploying
+    const SCRIPT_URL = '';
+
+    const MIN = 1, MAX = 100;
     let current, next, score, streak, best;
 
     function rand() {
@@ -195,6 +296,8 @@
       document.getElementById('result-msg').textContent = '';
       document.getElementById('result-msg').className = 'result-msg';
       document.getElementById('btn-restart').classList.remove('visible');
+      document.getElementById('name-form').classList.remove('visible');
+      document.getElementById('player-name').value = '';
       setButtons(true);
     }
 
@@ -224,6 +327,53 @@
       document.getElementById('history').prepend(div);
     }
 
+    function onGameOver() {
+      document.getElementById('final-score').textContent = score;
+      if (SCRIPT_URL) {
+        document.getElementById('name-form').classList.add('visible');
+      } else {
+        document.getElementById('btn-restart').classList.add('visible');
+      }
+    }
+
+    async function submitScore(name) {
+      if (!SCRIPT_URL || !name.trim()) return;
+      const url = `${SCRIPT_URL}?action=save&name=${encodeURIComponent(name.trim())}&score=${score}`;
+      try {
+        await fetch(url, { mode: 'no-cors' });
+      } catch (_) {}
+      setTimeout(loadLeaderboard, 1500);
+    }
+
+    async function loadLeaderboard() {
+      if (!SCRIPT_URL) return;
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=top`);
+        const data = await res.json();
+        renderLeaderboard(data.top || []);
+      } catch (_) {}
+    }
+
+    function renderLeaderboard(top) {
+      const medals = ['🥇', '🥈', '🥉'];
+      const container = document.getElementById('lb-rows');
+      if (!top.length) {
+        container.innerHTML = '<div class="lb-empty">No scores yet</div>';
+        return;
+      }
+      container.innerHTML = top.map((entry, i) => `
+        <div class="lb-row">
+          <span class="lb-rank">${medals[i]}</span>
+          <span class="lb-name">${escapeHtml(entry.name)}</span>
+          <span class="lb-score">${entry.score}</span>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
     function guess(higher) {
       setButtons(false);
       next = rand();
@@ -242,7 +392,7 @@
       const messages = {
         correct: ['Correct!', 'Nice one!', 'You got it!', 'Well played!'],
         wrong:   ['Wrong!', 'Not quite.', 'Bad luck!', 'Try again!'],
-        tie:     ['It\'s a tie — same number!']
+        tie:     ["It's a tie — same number!"]
       };
 
       const pool = messages[outcome];
@@ -261,10 +411,7 @@
         addHistory('correct', next);
         current = next;
         render();
-        setTimeout(() => {
-          msgEl.textContent = '';
-          setButtons(true);
-        }, 900);
+        setTimeout(() => { msgEl.textContent = ''; setButtons(true); }, 900);
       } else if (outcome === 'tie') {
         flashNumber('correct');
         msgEl.textContent = `${msg} The next number was also ${next}.`;
@@ -272,10 +419,7 @@
         addHistory('tie', next);
         current = next;
         render();
-        setTimeout(() => {
-          msgEl.textContent = '';
-          setButtons(true);
-        }, 900);
+        setTimeout(() => { msgEl.textContent = ''; setButtons(true); }, 900);
       } else {
         streak = 0;
         flashNumber('wrong');
@@ -283,7 +427,7 @@
         msgEl.className = 'result-msg wrong';
         addHistory('wrong', next);
         render();
-        document.getElementById('btn-restart').classList.add('visible');
+        onGameOver();
       }
     }
 
@@ -291,6 +435,26 @@
     document.getElementById('btn-lower').addEventListener('click', () => guess(false));
     document.getElementById('btn-restart').addEventListener('click', init);
 
+    document.getElementById('btn-submit-score').addEventListener('click', async () => {
+      const name = document.getElementById('player-name').value;
+      if (!name.trim()) { document.getElementById('player-name').focus(); return; }
+      document.getElementById('btn-submit-score').disabled = true;
+      document.getElementById('btn-submit-score').textContent = 'Saving…';
+      await submitScore(name);
+      document.getElementById('name-form').classList.remove('visible');
+      document.getElementById('btn-restart').classList.add('visible');
+    });
+
+    document.getElementById('btn-skip').addEventListener('click', () => {
+      document.getElementById('name-form').classList.remove('visible');
+      document.getElementById('btn-restart').classList.add('visible');
+    });
+
+    document.getElementById('player-name').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-submit-score').click();
+    });
+
+    loadLeaderboard();
     init();
   </script>
 </body>
