@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hi-Lo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      color: #e94560;
+    }
+
+    .scoreboard {
+      display: flex;
+      gap: 40px;
+      font-size: 1rem;
+      color: #aaa;
+    }
+
+    .scoreboard span { font-weight: 700; color: #fff; font-size: 1.2rem; }
+
+    .card {
+      background: #16213e;
+      border-radius: 20px;
+      padding: 48px 64px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      min-width: 320px;
+    }
+
+    .label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .number {
+      font-size: 6rem;
+      font-weight: 900;
+      line-height: 1;
+      color: #fff;
+      transition: transform 0.15s ease, color 0.15s ease;
+    }
+
+    .number.flash-correct { color: #4ade80; transform: scale(1.1); }
+    .number.flash-wrong   { color: #f87171; transform: scale(1.1); }
+
+    .range-hint {
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: 8px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    button {
+      flex: 1;
+      padding: 16px 24px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+
+    button:active { transform: scale(0.96); }
+    button:disabled { opacity: 0.4; cursor: default; }
+
+    #btn-higher {
+      background: #e94560;
+      color: #fff;
+    }
+
+    #btn-lower {
+      background: #0f3460;
+      color: #fff;
+      border: 2px solid #e94560;
+    }
+
+    .result-msg {
+      font-size: 1.2rem;
+      font-weight: 600;
+      min-height: 1.6em;
+      text-align: center;
+      transition: opacity 0.2s;
+    }
+
+    .result-msg.correct { color: #4ade80; }
+    .result-msg.wrong   { color: #f87171; }
+    .result-msg.tie     { color: #facc15; }
+
+    .history {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 400px;
+    }
+
+    .history-item {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .history-item.correct { background: #166534; color: #4ade80; }
+    .history-item.wrong   { background: #7f1d1d; color: #f87171; }
+    .history-item.tie     { background: #713f12; color: #facc15; }
+
+    #btn-restart {
+      background: transparent;
+      color: #e94560;
+      border: 2px solid #e94560;
+      border-radius: 12px;
+      padding: 12px 32px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: none;
+    }
+
+    #btn-restart.visible { display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>HI-LO</h1>
+
+  <div class="scoreboard">
+    Score: <span id="score">0</span>&nbsp;&nbsp;|&nbsp;&nbsp;Streak: <span id="streak">0</span>&nbsp;&nbsp;|&nbsp;&nbsp;Best: <span id="best">0</span>
+  </div>
+
+  <div class="card">
+    <div class="label">Current number</div>
+    <div class="number" id="current-number">—</div>
+    <div class="range-hint">Range: 1 – 100</div>
+
+    <div class="buttons">
+      <button id="btn-higher">▲ Higher</button>
+      <button id="btn-lower">▼ Lower</button>
+    </div>
+  </div>
+
+  <div class="result-msg" id="result-msg"></div>
+
+  <div class="history" id="history"></div>
+
+  <button id="btn-restart">Play Again</button>
+
+  <script>
+    const MIN = 1, MAX = 100;
+
+    let current, next, score, streak, best;
+
+    function rand() {
+      return Math.floor(Math.random() * (MAX - MIN + 1)) + MIN;
+    }
+
+    function init() {
+      current = rand();
+      next = null;
+      score = 0;
+      streak = 0;
+      best = parseInt(localStorage.getItem('hilo-best') || '0', 10);
+      render();
+      document.getElementById('history').innerHTML = '';
+      document.getElementById('result-msg').textContent = '';
+      document.getElementById('result-msg').className = 'result-msg';
+      document.getElementById('btn-restart').classList.remove('visible');
+      setButtons(true);
+    }
+
+    function render() {
+      document.getElementById('current-number').textContent = current;
+      document.getElementById('score').textContent = score;
+      document.getElementById('streak').textContent = streak;
+      document.getElementById('best').textContent = best;
+    }
+
+    function setButtons(enabled) {
+      document.getElementById('btn-higher').disabled = !enabled;
+      document.getElementById('btn-lower').disabled = !enabled;
+    }
+
+    function flashNumber(type) {
+      const el = document.getElementById('current-number');
+      el.classList.add(type === 'correct' ? 'flash-correct' : 'flash-wrong');
+      setTimeout(() => el.classList.remove('flash-correct', 'flash-wrong'), 400);
+    }
+
+    function addHistory(type, num) {
+      const div = document.createElement('div');
+      div.className = `history-item ${type}`;
+      div.title = num;
+      div.textContent = num;
+      document.getElementById('history').prepend(div);
+    }
+
+    function guess(higher) {
+      setButtons(false);
+      next = rand();
+
+      const msgEl = document.getElementById('result-msg');
+      let outcome;
+
+      if (next === current) {
+        outcome = 'tie';
+      } else if (higher ? next > current : next < current) {
+        outcome = 'correct';
+      } else {
+        outcome = 'wrong';
+      }
+
+      const messages = {
+        correct: ['Correct!', 'Nice one!', 'You got it!', 'Well played!'],
+        wrong:   ['Wrong!', 'Not quite.', 'Bad luck!', 'Try again!'],
+        tie:     ['It\'s a tie — same number!']
+      };
+
+      const pool = messages[outcome];
+      const msg = pool[Math.floor(Math.random() * pool.length)];
+
+      if (outcome === 'correct') {
+        score++;
+        streak++;
+        if (streak > best) {
+          best = streak;
+          localStorage.setItem('hilo-best', best);
+        }
+        flashNumber('correct');
+        msgEl.textContent = `${msg} The next number was ${next}.`;
+        msgEl.className = 'result-msg correct';
+        addHistory('correct', next);
+        current = next;
+        render();
+        setTimeout(() => {
+          msgEl.textContent = '';
+          setButtons(true);
+        }, 900);
+      } else if (outcome === 'tie') {
+        flashNumber('correct');
+        msgEl.textContent = `${msg} The next number was also ${next}.`;
+        msgEl.className = 'result-msg tie';
+        addHistory('tie', next);
+        current = next;
+        render();
+        setTimeout(() => {
+          msgEl.textContent = '';
+          setButtons(true);
+        }, 900);
+      } else {
+        streak = 0;
+        flashNumber('wrong');
+        msgEl.textContent = `${msg} The next number was ${next}.`;
+        msgEl.className = 'result-msg wrong';
+        addHistory('wrong', next);
+        render();
+        document.getElementById('btn-restart').classList.add('visible');
+      }
+    }
+
+    document.getElementById('btn-higher').addEventListener('click', () => guess(true));
+    document.getElementById('btn-lower').addEventListener('click', () => guess(false));
+    document.getElementById('btn-restart').addEventListener('click', init);
+
+    init();
+  </script>
+</body>
+</html>
