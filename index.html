@@ -231,6 +231,37 @@
     }
 
     #btn-restart.visible { display: inline-block; }
+
+    /* Daily limit screen */
+    #daily-limit {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      text-align: center;
+      padding: 16px;
+    }
+
+    #daily-limit.visible { display: flex; }
+
+    #daily-limit h2 {
+      font-size: 2rem;
+      font-weight: 900;
+      color: #e94560;
+      line-height: 1.2;
+    }
+
+    #daily-limit p {
+      color: #aaa;
+      font-size: 1rem;
+      max-width: 280px;
+      line-height: 1.5;
+    }
+
+    #daily-limit .comeback {
+      font-size: 0.85rem;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -268,6 +299,13 @@
 
   <button id="btn-restart">Play Again</button>
 
+  <!-- Daily limit screen -->
+  <div id="daily-limit">
+    <h2>Get back<br>to work!</h2>
+    <p>You've played 5 games today. That's enough fun for now.</p>
+    <p class="comeback">Come back tomorrow for more.</p>
+  </div>
+
   <!-- Top 3 leaderboard -->
   <div id="leaderboard">
     <h2>Top 3</h2>
@@ -279,13 +317,40 @@
     const SCRIPT_URL = '';
 
     const MIN = 1, MAX = 100;
+    const MAX_PLAYS = 5;
     let current, next, score, streak, best;
+
+    function todayStr() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function getPlaysToday() {
+      if (localStorage.getItem('hilo-play-date') !== todayStr()) {
+        localStorage.setItem('hilo-play-date', todayStr());
+        localStorage.setItem('hilo-play-count', '0');
+      }
+      return parseInt(localStorage.getItem('hilo-play-count') || '0', 10);
+    }
+
+    function incrementPlays() {
+      const count = getPlaysToday() + 1;
+      localStorage.setItem('hilo-play-count', String(count));
+      return count;
+    }
+
+    function showDailyLimit() {
+      document.getElementById('daily-limit').classList.add('visible');
+      document.getElementById('btn-restart').classList.remove('visible');
+      document.getElementById('name-form').classList.remove('visible');
+      setButtons(false);
+    }
 
     function rand() {
       return Math.floor(Math.random() * (MAX - MIN + 1)) + MIN;
     }
 
     function init() {
+      if (getPlaysToday() >= MAX_PLAYS) { showDailyLimit(); return; }
       current = rand();
       next = null;
       score = 0;
@@ -297,6 +362,7 @@
       document.getElementById('result-msg').className = 'result-msg';
       document.getElementById('btn-restart').classList.remove('visible');
       document.getElementById('name-form').classList.remove('visible');
+      document.getElementById('daily-limit').classList.remove('visible');
       document.getElementById('player-name').value = '';
       setButtons(true);
     }
@@ -328,6 +394,11 @@
     }
 
     function onGameOver() {
+      const plays = incrementPlays();
+      if (plays >= MAX_PLAYS) {
+        showDailyLimit();
+        return;
+      }
       document.getElementById('final-score').textContent = score;
       if (SCRIPT_URL) {
         document.getElementById('name-form').classList.add('visible');
